@@ -41,8 +41,6 @@ const Persons = ({ result, client }) => {
     )
   }
 
-  
-
   return (
     <div>
       <h2>Persons</h2>
