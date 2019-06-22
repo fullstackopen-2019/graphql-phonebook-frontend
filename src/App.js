@@ -81,7 +81,7 @@ const App = () => {
       >
         {(addPerson) =>
           <PersonForm
-            addUser={addPerson}
+            addPerson={addPerson}
           />
         }
       </Mutation>   
