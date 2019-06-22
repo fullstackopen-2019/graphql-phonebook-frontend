@@ -1,26 +1,30 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React from 'react'
+import { Query, ApolloConsumer } from 'react-apollo'
+import { gql } from 'apollo-boost'
+import Persons from './components/Persons'
 
-function App() {
+const ALL_PERSONS = gql`
+{
+  allPersons  {
+    name
+    phone
+    id
+  }
+}
+`
+
+const App = () => {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    <ApolloConsumer>
+      {(client =>
+        <Query query={ALL_PERSONS}>
+          {(result) =>
+            <Persons result={result} client={client} />
+          }
+        </Query>
+      )}
+    </ApolloConsumer>
+  )
 }
 
-export default App;
+export default App
