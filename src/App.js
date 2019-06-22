@@ -1,19 +1,30 @@
 import React, { useState } from 'react'
 import { gql } from 'apollo-boost'
-import { useQuery, useMutation, useApolloClient } from '@apollo/react-hooks'
+import { useQuery, useMutation, useSubscription ,useApolloClient } from '@apollo/react-hooks'
 import Persons from './components/Persons'
 import PersonForm from './components/PersonForm'
 import PhoneForm from './components/PhoneForm'
 import LoginForm from './components/LoginForm'
 
+const PERSON_DETAILS = gql`
+  fragment PersonDetails on Person {
+    id
+    name
+    phone 
+    address {
+      street 
+      city
+    }
+  }
+`
+
 const ALL_PERSONS = gql`
   {
     allPersons  {
-      name
-      phone
-      id
+      ...PersonDetails
     }
   }
+  ${PERSON_DETAILS}  
 `
 
 const CREATE_PERSON = gql`
@@ -24,29 +35,19 @@ const CREATE_PERSON = gql`
       city: $city,
       phone: $phone
     ) {
-      name
-      phone
-      id
-      address {
-        street
-        city
-      }
+      ...PersonDetails
     }
   }
+  ${PERSON_DETAILS} 
 `
 
 const EDIT_NUMBER = gql`
   mutation editNumber($name: String!, $phone: String!) {
     editNumber(name: $name, phone: $phone)  {
-      name
-      phone
-      address {
-        street
-        city
-      }
-      id
+      ...PersonDetails
     }
   }
+  ${PERSON_DETAILS} 
 `
 const LOGIN = gql`
   mutation login($username: String!, $password: String!) {
@@ -56,9 +57,25 @@ const LOGIN = gql`
   }
 `
 
+const PERSON_ADDED = gql`
+  subscription {
+    personAdded {
+      ...PersonDetails
+    }
+  }
+  ${PERSON_DETAILS}
+`
+
 const App = () => {
   const [errorMessage, setErrorMessage] = useState(null)
   const [token, setToken] = useState(null)
+
+  const notify = (message) => {
+    setErrorMessage(message)
+    setTimeout(() => {
+      setErrorMessage(null)
+    }, 10000)
+  }
 
   const handleError = (error) => {
     setErrorMessage(error.graphQLErrors[0].message)
@@ -69,17 +86,34 @@ const App = () => {
 
   const client = useApolloClient()
 
-  const persons = useQuery(ALL_PERSONS)
+  const persons = useQuery(ALL_PERSONS) 
+
+  const updateCacheWith = (addedPerson) => {
+    const includedIn = (set, object) =>
+      set.map(p => p.id).includes(object.id)  
+
+    const dataInStore = client.readQuery({ query: ALL_PERSONS })
+    if (!includedIn(dataInStore.allPersons, addedPerson)) {
+      dataInStore.allPersons.push(addedPerson)
+      client.writeQuery({
+        query: ALL_PERSONS,
+        data: dataInStore
+      })
+    }   
+  }
+
+  useSubscription(PERSON_ADDED, {
+    onSubscriptionData: ({ subscriptionData }) => {
+      const addedPerson = subscriptionData.data.personAdded
+      notify(`${addedPerson.name} added`)
+      updateCacheWith(addedPerson)
+    }
+  })
 
   const [addPerson] = useMutation(CREATE_PERSON, {
     onError: handleError,
     update: (store, response) => {
-      const dataInStore = store.readQuery({ query: ALL_PERSONS })
-      dataInStore.allPersons.push(response.data.addPerson)
-      store.writeQuery({
-        query: ALL_PERSONS,
-        data: dataInStore
-      })
+      updateCacheWith(response.data.addPerson)
     }
   })
 
@@ -115,11 +149,7 @@ const App = () => {
 
   return (
     <div>
-      {errorMessage &&
-        <div style={{ color: 'red' }}>
-          {errorMessage}
-        </div>
-      }
+      {errorNotification()}
       <Persons result={persons} />
 
       <h2>create new</h2>
